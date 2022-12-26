@@ -17,25 +17,28 @@ import java.util.concurrent.Executors;
  */
 public class KafkaConProducer {
 
+    public final static String TOPIC_NAME = "songshenglin-thread";
+    public final static String HOST_NAME = "101.201.154.144:9092";
+
     //发送消息的个数
     private static final int MSG_SIZE = 1000;
     //负责发送消息的线程池
     private static ExecutorService executorService = Executors.newFixedThreadPool(
             Runtime.getRuntime().availableProcessors());
-    private static CountDownLatch countDownLatch  = new CountDownLatch(MSG_SIZE);
+    private static CountDownLatch countDownLatch = new CountDownLatch(MSG_SIZE);
 
-    private static User makeUser(int id){
+    private static User makeUser(int id) {
         User user = new User(id);
-        String userName = "msb_"+id;
+        String userName = "msb_" + id;
         user.setName(userName);
         return user;
     }
 
     /*发送消息的任务*/
-    private static class ProduceWorker implements Runnable{
+    private static class ProduceWorker implements Runnable {
 
-        private ProducerRecord<String,String> record;
-        private KafkaProducer<String,String> producer;
+        private ProducerRecord<String, String> record;
+        private KafkaProducer<String, String> producer;
 
         public ProduceWorker(ProducerRecord<String, String> record, KafkaProducer<String, String> producer) {
             this.record = record;
@@ -47,15 +50,16 @@ public class KafkaConProducer {
             try {
                 producer.send(record, new Callback() {
                     public void onCompletion(RecordMetadata metadata, Exception exception) {
-                        if(null!=exception){
+                        if (null != exception) {
                             exception.printStackTrace();
                         }
-                        if(null!=metadata){
-                            System.out.println(ThreadName+"|" +String.format("偏移量：%s,分区：%s", metadata.offset(),
+                        if (null != metadata) {
+                            System.out.println(ThreadName + "|" + String.format("偏移量：%s,分区：%s", metadata.offset(),
                                     metadata.partition()));
                         }
                     }
                 });
+                // 多线程里并发关键字减少
                 countDownLatch.countDown();
             } catch (Exception e) {
                 e.printStackTrace();
@@ -67,19 +71,23 @@ public class KafkaConProducer {
         // 设置属性
         Properties properties = new Properties();
         // 指定连接的kafka服务器的地址
-        properties.put("bootstrap.servers","127.0.0.1:9092");
+        properties.put("bootstrap.servers", HOST_NAME);
         // 设置String的序列化
         properties.put("key.serializer", StringSerializer.class);
         properties.put("value.serializer", StringSerializer.class);
         // 构建kafka生产者对象
-        KafkaProducer<String,String> producer  = new KafkaProducer<String, String>(properties);
+        // kafka生成者是多线程安全的，可以让同一个producer跑多个线程
+        KafkaProducer<String, String> producer = new KafkaProducer<String, String>(properties);
         try {
-            for(int i=0;i<MSG_SIZE;i++){
+            for (int i = 0; i < MSG_SIZE; i++) {
                 User user = makeUser(i);
-                ProducerRecord<String,String> record = new ProducerRecord<String,String>("concurrent-ConsumerOffsets",null,
-                        System.currentTimeMillis(), user.getId()+"", user.toString());
-                executorService.submit(new ProduceWorker(record,producer));
+                ProducerRecord<String, String> record = new ProducerRecord<String, String>(TOPIC_NAME, null, System.currentTimeMillis(), user.getId() + "", user.toString());
+
+                // kafka生成者是多线程安全的，可以让同一个producer跑多个线程
+                executorService.submit(new ProduceWorker(record, producer));
             }
+
+            // 多线程里并发关键字等待
             countDownLatch.await();
         } catch (Exception e) {
             e.printStackTrace();
@@ -88,8 +96,6 @@ public class KafkaConProducer {
             executorService.shutdown();
         }
     }
-
-
 
 
 }

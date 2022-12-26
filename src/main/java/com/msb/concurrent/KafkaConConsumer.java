@@ -19,18 +19,22 @@ import java.util.concurrent.Executors;
  */
 public class KafkaConConsumer {
 
+    public final static String TOPIC_NAME = "songshenglin-thread";
+    public final static String HOST_NAME = "101.201.154.144:9092";
+
+
     public static final int CONCURRENT_PARTITIONS_COUNT = 2;
 
     private static ExecutorService executorService = Executors.newFixedThreadPool(CONCURRENT_PARTITIONS_COUNT);
 
-    private static class ConsumerWorker implements Runnable{
+    private static class ConsumerWorker implements Runnable {
 
-        private KafkaConsumer<String,String> consumer;
+        private KafkaConsumer<String, String> consumer;
 
         public ConsumerWorker(Map<String, Object> config, String topic) {
             Properties properties = new Properties();
             properties.putAll(config);
-            //一个线程一个消费者
+            // consumer是线程不安全的，最简单的做法就是线程封闭 = 一个线程一个消费者
             this.consumer = new KafkaConsumer<String, String>(properties);
             consumer.subscribe(Collections.singletonList(topic));
         }
@@ -38,14 +42,14 @@ public class KafkaConConsumer {
         public void run() {
             final String ThreadName = Thread.currentThread().getName();
             try {
-                while(true){
+                while (true) {
                     ConsumerRecords<String, String> records = consumer.poll(Duration.ofSeconds(1));
-                    for(ConsumerRecord<String, String> record:records){
-                        System.out.println(ThreadName+"|"+String.format(
+                    for (ConsumerRecord<String, String> record : records) {
+                        System.out.println(ThreadName + "|" + String.format(
                                 "主题：%s，分区：%d，偏移量：%d，" +
                                         "key：%s，value：%s",
-                                record.topic(),record.partition(),
-                                record.offset(),record.key(),record.value()));
+                                record.topic(), record.partition(),
+                                record.offset(), record.key(), record.value()));
                         //do our work
                     }
                 }
@@ -58,20 +62,18 @@ public class KafkaConConsumer {
     public static void main(String[] args) {
 
         /*消费配置的实例*/
-        Map<String,Object> properties = new HashMap<String, Object>();
-        properties.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG,"127.0.0.1:9092");
-        properties.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG,StringDeserializer.class);
-        properties.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG,StringDeserializer.class);
-        properties.put(ConsumerConfig.GROUP_ID_CONFIG,"c_test");
-        properties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG,"earliest");
+        Map<String, Object> properties = new HashMap<String, Object>();
+        properties.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, HOST_NAME);
+        properties.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+        properties.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+        properties.put(ConsumerConfig.GROUP_ID_CONFIG, "c_test");
+        properties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
 
-        for(int i = 0; i<CONCURRENT_PARTITIONS_COUNT; i++){
+        for (int i = 0; i < CONCURRENT_PARTITIONS_COUNT; i++) {
             //一个线程一个消费者
-            executorService.submit(new ConsumerWorker(properties, "concurrent-ConsumerOffsets"));
+            executorService.submit(new ConsumerWorker(properties, TOPIC_NAME));
         }
     }
-
-
 
 
 }
